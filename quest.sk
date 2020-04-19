@@ -1,0 +1,212 @@
+command /addquest <text>:
+	permission: *
+	trigger:
+		add arg-1 to {tag.quests::*}
+		set {tag.questData.%arg-1%.id} to arg-1
+		send "Succesfully added quest with id %arg-1%"
+
+command /achievequest <text> [<player>]:
+	permission: *
+	trigger:
+		set {_p} to player
+		if arg-2 is set:
+			set {_p} to arg-2
+		questAchieved({_p}, arg-1)
+
+command /removequest <text>:
+	permission: *
+	trigger:
+		remove arg-1 from {tag.quests::*}
+		clear {tag.questData.%arg-1%}
+		send "Succesfully removed quest with id %arg-1%"
+
+command /editquest <text>:
+	permission: *
+	trigger:
+		set {_args::*} to arguments split at " "
+		set {_arg-1} to index 0 of {_args::*}
+		set {_arg-2} to index 1 of {_args::*}
+
+		set {_questID} to {_arg-1}
+
+		set {_value} to arguments
+		replace "%{_arg-1}% " with "" in {_value}
+		replace "%{_arg-2}% " with "" in {_value}
+
+		if {_arg-2} is "text":
+			set {tag.questData.%{_questID}%.text} to {_value}
+			send "Successfully changed text of &e%{_questID}%&f to &b%{_value}%" to player
+		if {_arg-2} is "reward":
+			set {tag.questData.%{_questID}%.reward} to {_value} parsed as number
+			send "Successfully changed reward of &e%{_questID}% to &b%{_value}%" to player
+		if {_arg-2} is "name":
+			set {tag.questData.%{_questID}%.name} to {_value} 
+			send "Successfully changed name of &e%{_questID}% to &b%{_value}%" to player
+		if {_arg-2} is "scribble":
+			set {tag.questData.%{_questID}%.scribble} to {_value}
+			send "Successfully set quest &e%{_questID}% to &bscribbled" to player
+
+command /questdata <text>:
+	permission: *
+	trigger:
+		send "&aID: &7%{tag.questData.%arg-1%.id}%" to player
+		send "&aname: &7%{tag.questData.%arg-1%.name}%" to player
+		send "&atext: &7%{tag.questData.%arg-1%.text}%" to player
+		send "&areward: &7%{tag.questData.%arg-1%.reward}%" to player
+
+command /questids:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			send "%loop-index%: %loop-value%" to player
+
+command /resetquests:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			clear {tag.playersData.%player%.quests.%loop-value%}
+		send "Succesfully reset all quests" to player
+
+command /resetquest <text>:
+	permission: *
+	trigger:
+		clear {tag.playersData.%player%.quests.%arg-1%}
+		send "Succesfully reset quest %arg-1%" to player
+
+command /questorder <text>:
+	permission: *
+	trigger:
+		set {_nums::*} to arg-1 split at ""
+		remove (last element of {_nums::*}) from {_nums::*}
+		if size of {_nums::*} is not size of {tag.quests::*}:
+			send "ERR: You used %size of {_nums::*}%. but needed is: %size of {tag.quests::*}%" to player
+			stop
+
+		loop size of {tag.quests::*} times:
+			set {_idx} to {_nums::%loop-value%}
+			if {_idx} parsed as number > size of {tag.quests::*}:
+				send "ERR: Number higher then size found!" to player
+				stop
+			if {_newQuestList::*} contains {tag.quests::%{_idx}%}:
+				send "ERR: Duplicate number found!" to player
+				stop
+			if {tag.quests::%{_idx}%} is not set:
+				send "ERR: Something went wrong. Do it different" to player
+			add {tag.quests::%{_idx}%} to {_newQuestList::*}
+
+		set {tag.quests::*} to {_newQuestList::*}
+		send "Successfully changed order of quests!" to player
+
+command /claimdiscordquest <text>:
+	trigger:
+		if arg-1 is "o3l2y9":
+			questAchieved(player, "join_discord")
+
+command /questrates:
+	trigger:
+		loop {tag.quests::*}:
+			set {_num} to {tag.questRates::%loop-value%}
+			send "&e%loop-value%&7: &b%{_num}%"
+
+command /updatequestrates:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			set {tag.questRates::%loop-value%} to 0
+			loop {tag.allPlayers::*}:
+				if {tag.playersData.%loop-value-2%.quests.%loop-value-1%}:
+					add 1 to {tag.questRates::%loop-value-1%}
+
+		send "&bDone!" to player
+command /quests [<player>]:
+	aliases: /q
+	trigger:
+
+		set {_p} to player
+		if arg-1 is set:
+			set {_p} to arg-1
+		open virtual chest inventory with size 4 named "Quests:" to player
+
+		loop {tag.quests::*}:
+			set {_index} to loop-index parsed as number
+			remove 1 from {_index}
+
+			set {_id} to loop-value
+			set {_lore1} to "&aObjective: &f%{tag.questData.%loop-value%.text}%"
+			set {_lore2} to "&aReward: &f%{tag.questData.%loop-value%.reward}%$"
+			set {_name} to "&b%{tag.questData.%loop-value%.name}%"
+
+			set {_item} to book
+
+			set {_achieved} to {tag.playersData.%{_p}%.quests.%{_id}%}
+			if {tag.playersData.%{_p}%.quests.%{_id}%} is not set:
+				set {_achieved} to false
+
+			if {_achieved} is true:
+				set {_item} to enchanted book
+				set {_lore2} to "&cQuest achieved!"
+
+			if {tag.questData.%loop-value%.scribble} is "true":
+				{_achieved} is not true
+				set {_lore1} to "&aObjective: &f&k%{tag.questData.%loop-value%.text}%"
+				set {_lore2} to "&aReward: &f&k%{tag.questData.%loop-value%.reward}%$"
+				set {_name} to "&b&k%{tag.questData.%loop-value%.name}%"
+
+
+			format gui slot {_index} of player with {_item} named {_name} with lore {_lore1} and {_lore2} to close
+
+
+command /test:
+	permission: *
+	trigger:
+		loop players:
+			checkQuests(loop-value)
+
+function checkQuests(p: player):
+
+	# check for x rounds 
+	if {tag.playersData.%{_p}%.roundsPlayed} > 9:
+		questAchieved({_p}, "10_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 24:
+		questAchieved({_p}, "25_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 49:
+		questAchieved({_p}, "50_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 99:
+		questAchieved({_p}, "100_rounds")
+
+	# 10 maps voted
+	set {_mapsVoted} to 0
+	loop {tag.mapList::*}:
+		if {tag.maps.%loop-value%.likes::*} contains {_p}:
+			add 1 to {_mapsVoted}
+		if {tag.maps.%loop-value%.dislikes::*} contains {_p}:
+			add 1 to {_mapsVoted}
+	if {_mapsVoted} > 9:
+		questAchieved({_p}, "10_votes")
+
+	# all maps treasures
+	set {_treasuresFound} to 0
+	loop {tag.mapList::*}:
+		if {tag.playersData.%{_p}%.quests.treasure_%loop-value%} is true:
+			add 1 to {_treasuresFound}
+	if {_treasuresFound} is size of {tag.mapList::*}:
+		questAchieved({_p}, "all_treasures")
+
+	# all quests
+	set {_questsDone} to 0
+	loop {tag.quests::*}:
+		if {tag.playersData.%{_p}%.quests.%loop-value%} is true:
+			add 1 to {_questsDone}
+	#execute console command  "/helpop %{_p}% [ %{_questsDone}%  [ %size of {tag.quests::*}%"
+	if {_questsDone} is size of {tag.quests::*} -1:
+		questAchieved({_p}, "all_quests")
+
+
+function questAchieved(p: player, q: text):
+	if {tag.playersData.%{_p}%.quests.%{_q}%} is set:
+		stop
+	set {tag.playersData.%{_p}%.quests.%{_q}%} to true
+	set {_reward} to {tag.questData.%{_q}%.reward}
+	set {_name} to {tag.questData.%{_q}%.name}
+	broadcast "&e%{_p}% &7Finished the &a%{_name}% &7quest and earned &b%{_reward}%$&7."
+	add {_reward} to {_p}'s balance

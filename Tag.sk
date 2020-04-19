@@ -1,0 +1,1197 @@
+options:
+	powerup_speed_cost: 5
+	powerup_invis_cost: 10
+	powerup_swap_cost: 15
+	powerup_highlight_cost: 5
+	round_length: 240
+	default_mana_gen: 0.2
+
+
+command /tag <text> [<text>]:
+	usage: /tag [join|leave|list]
+	trigger:
+		arg-1 is "join" or "j":
+			make player execute "/join"
+
+		arg-1 is "forcejoin":
+			player has permission "tag.settings"
+			make arg-2 parsed as player execute "/join"
+
+		arg-1 is "leave" or "l":
+			make player execute "/leave"
+
+		arg-1 is "kick":
+			make player execute command "/tagkick %arg-2%"
+
+		arg-1 is "it":
+			player has permission "tag.settings.moderator"
+			if arg-2 is "me":
+				settagIT(player)
+			if arg-2 is "random":
+				set {_NewIT} to a random element out of {tag.players::*}
+				settagIT({_NewIT})
+
+		arg-1 is "setmap":
+			player has permission "tag.settings.moderator"
+			set {tag.currentMap} to arg-2
+			startGame()
+
+		arg-1 is "setspawn":
+			player has permission "tag.settings"
+			set {tag.maps.%arg-2%.spawn} to location of player
+			send message "Spawn set of %arg-2%" to player
+
+		arg-1 is "tpmap":
+			player has permission "tag.settings"
+			teleport player to {tag.maps.%arg-2%.spawn}
+			send message "Teleported to map: %arg-2%" to player
+
+		arg-1 is "addmap":
+			player has permission "tag.settings"
+			add arg-2 to {tag.mapList::*}
+			message "Map %arg-2% added to the queue!"
+
+		arg-1 is "removemap":
+			player has permission "tag.settings"
+			remove arg-2 from {tag.mapList::*}
+			message "Map %arg-2% removed from the queue!"
+
+		arg-1 is "maplist":
+			make player execute "/maplist"
+
+		arg-1 is "setlobbyspawn":
+			player has permission "tag.settings"
+			set {tag.lobbyspawn} to location of player
+			send message "Spawn set of lobby" to player
+
+		arg-1 is "end":
+			player has permission "tag.settings.moderator"
+			set {tag.timer} to 1
+
+		arg-1 is "start":
+			player has permission "tag.settings.moderator"
+			set {tag.newGameTimer} to 1
+
+		arg-1 is "setmana":
+			player has permission "tag.settings"
+			set {tag.playersData.%player%.mana} to arg-2 parsed as number
+
+		arg-1 is "reload":
+			make player execute "/skript reload Tag"
+
+		arg-1 is "getRatings":
+			if args-2 is "all":
+				loop {tag.mapList::*}:
+					set {_map} to loop-value
+					set {_likes} to size of {tag.maps.%{_map}%.likes::*}
+					set {_dislikes} to size of {tag.maps.%{_map}%.dislikes::*}
+					message "&fMap &e%{_map}% has gotten &b%{_likes}%&a Likes&f and &b%{_dislikes}%&c Dislikes" to player
+			else:
+				set {_map} to args-2
+				set {_likes} to size of {tag.maps.%{_map}%.likes::*}
+				set {_dislikes} to size of {tag.maps.%{_map}%.dislikes::*}
+				message "&fMap &e%{_map}% has gotten &b%{_likes}%&a Likes&f and &b%{_dislikes}%&c Dislikes" to player
+
+		arg-1 is "resetvotemap":
+			remove player from {tag.maps.%{tag.previousMap}%.likes::*}
+			remove player from {tag.maps.%{tag.previousMap}%.dislikes::*}
+			message "Did you like this map (%{tag.previousMap}%)? <command:/tag likemap>&aLike<reset> <command:/tag dislikemap>&4Dislike<reset>" to player
+
+		arg-1 is "likemap":
+			if {tag.maps.%{tag.previousMap}%.likes::*} contains player:
+				message "&eYou have already &aliked &emap &b%{tag.previousMap}%.&7 <command:/tag resetvotemap> Click here to revote<reset>"
+				stop
+			if {tag.maps.%{tag.previousMap}%.dislikes::*} contains player:
+				message "&eYou have already &cdisliked &emap &b%{tag.previousMap}%.&7 <command:/tag resetvotemap> Click here to revote<reset>"
+				stop
+
+			add player to {tag.maps.%{tag.previousMap}%.likes::*}
+			message "&eYou gave map &b%{tag.previousMap}%&e a &alike!"
+
+		arg-1 is "dislikemap":
+			if {tag.maps.%{tag.previousMap}%.likes::*} contains player:
+				message "&eYou have already &aliked &emap &b%{tag.previousMap}%.&7 <command:/tag resetvotemap> Click here to revote<reset>"
+				stop
+			if {tag.maps.%{tag.previousMap}%.dislikes::*} contains player:
+				message "&eYou have already &cdisliked &emap &b%{tag.previousMap}%.&7 <command:/tag resetvotemap> Click here to revote<reset>"
+				stop
+				
+			add player to {tag.maps.%{tag.previousMap}%.dislikes::*}
+			message "&eYou gave map &b%{tag.previousMap}%&e a &cdislike!"
+				
+		arg-1 is "list":
+			loop {tag.players::*}:
+				message "&e»&7%loop-value%" to player
+			if size of {tag.players::*} = 0:
+				message "&7No one in tag yet! Join now with &e/tag join!" to player
+
+command /mymapvotes:
+	trigger:
+		loop {tag.mapList::*}:
+			if {tag.maps.%loop-value%.likes::*} contains player:
+				send "&e%loop-value%&7: &2Like" to player
+			if {tag.maps.%loop-value%.dislikes::*} contains player:
+				send "&e%loop-value%&7: &4Dislike" to player
+command /maplist:
+	trigger:
+		loop {tag.mapList::*}:
+			message "&e»&7%loop-value%" to player
+
+command /calculatelb:
+	permission: *
+	trigger:
+		broadcast "&aCalculating leaderboard..."
+		calculateLeaderboard()
+
+
+command /leveltop:
+	trigger:
+		set {_top::*} to {tag.leaderboard::*}
+		send "&aTop highest levels:" to player
+		loop 10 times:
+			set {_p} to {_top::%loop-value%}
+			set {_level} to {tag.playersData.%{_p}%.level}
+			send "&a##%loop-value% &b%{_p}%: &f%{_level}%" to player
+
+
+command /givexp <player> <number>:
+	permission: *
+	trigger:
+		givePlayerXP(arg-1, arg-2)
+
+command /setxp <player> <number>:
+	permission: *
+	trigger:
+		set {tag.playersData.%arg-1%.xp} to arg-2
+		set {tag.playersData.%arg-1%.level} to 0
+		givePlayerXP(arg-1, 0)
+
+command /leave:
+	trigger:
+		if {tag.players::*} does not contain player:
+			message "&7You have already left tag!" to player
+			stop
+		if {tag.it::*} contains player:
+			if size of {tag.players::*} > 1:
+				if player does not have permission "*":
+					message "&7You can't leave TAG while being IT!"
+					stop
+
+		kickPlayer(player)
+
+command /stats [<player>]:
+	trigger:
+		set {_p} to arg-1
+		if arg-1 is not set:
+			set {_p} to player
+
+		set {_level} to {tag.playersData.%{_p}%.level}
+		set {_xp} to {tag.playersData.%{_p}%.xp}
+		set {_timeNotIT} to {tag.playersData.%{_p}%.totalSecNotIT}
+		set {_timeIT} to {tag.playersData.%{_p}%.totalSecIT}
+		set {_roundsPlayed} to {tag.playersData.%{_p}%.roundsPlayed}
+		set {_percentage} to ({_timeNotIT}/({_timeNotIT}+{_timeIT}))*100
+
+		send "&b%{_p}%&a's stats:" to player
+		send "&axp:&f %{_xp}%" to player
+		send "&alevel:&f %{_level}%" to player
+		send "&aseconds not IT:&f %{_timeNotIT}%" to player
+		send "&aseconds IT:&f %{_timeIT}%" to player
+		send "&aNot IT of total time:&f %{_percentage}% %%" to player
+		send "&aRounds played:&f %{_roundsPlayed}%" to player
+		send "" to player
+
+
+command /join:
+	trigger:
+
+		# if already in tag. deny
+		if {tag.players::*} contains player:
+			message "&7You have already joined tag!" to player
+			stop
+
+		set the player's gamemode to adventure
+		clear player's inventory
+
+		# clear variables
+		set {tag.playersData.%player%.secNotIT} to 0
+		set {tag.playersData.%player%.secIT} to 0
+		set {tag.playersData.%player%.mana} to 0
+		set {tag.playersData.%{_ply}%.hasPowerup} to false
+
+		remove water breathing from the player
+		set player's fly mode to false
+		add player to {tag.players::*}
+
+		givePlayerPowerups(player)
+
+		if {tag.currentMapIndex} does not exist:
+			set {tag.currentMapIndex} to 0
+			nextMap()
+
+		broadcast "&c[TAG] &e%player%&7 Joined tag!"
+
+		# if players are in lobby
+		if {tag.timer} < 0:
+			teleport player to {tag.lobbyspawn}
+
+		# otherwise a game is going on
+		else:
+			teleport player to {tag.maps.%{tag.currentMap}%.spawn}
+			if size of {tag.it::*} is 0:
+				settagIT(player)
+
+
+command /tagkick [<player>]:
+	trigger:
+		player has permission "tag.settings.moderator"
+		kickPlayer(arg-1)
+
+
+every 20 ticks:
+
+	reloadScoreboard()
+
+	if {tag.timer} > 0:
+		loop {tag.players::*}:
+
+			# add mana
+			set {_manaSpeed} to {@default_mana_gen} + {tag.playersData.%loop-value%.manaGenerate}/20
+			add {_manaSpeed} to {tag.playersData.%loop-value%.mana}
+
+			if {tag.it::*} does not contain loop-value:
+				add 1 to {tag.playersData.%loop-value%.secNotIT}
+			else:
+				add 1 to {tag.playersData.%loop-value%.secIT}
+
+			if block at loop-value's location is water:
+				if {tag.currentMap} is "rooftops" or "tetris":
+					if {tag.it::*} contains loop-value:
+						teleport loop-value to {tag.maps.%{tag.currentMap}%.spawn}
+					else:
+						set {_randomIT} to random element out of {tag.it::*}
+						teleport loop-value to location of {_randomIT}
+
+				if {tag.currentMap} is "rooftops":
+					if y coordinate of loop-value < 40:
+						if {tag.IT::*} contains loop-value:
+							teleport loop-value to {tag.maps.%{tag.currentMap}%.spawn}
+						else:
+							set {_randomIT} to random element out of {tag.it::*}
+							teleport loop-value to location of {_randomIT}
+
+			set level progress of the loop-value to {tag.playersData.%loop-value%.mana}
+			set the loop-value's level to {tag.playersData.%loop-value%.mana}
+
+
+	remove 1 from {tag.newGameTimer}
+	if {tag.newGameTimer} is 0:
+		broadcast "&c[TAG] &7A new round has started! &amap: %{tag.currentMap}%"
+		startGame()
+	if {tag.newGameTimer} is 20:
+		broadcast "&c[TAG] &7A new round in map &a%{tag.currentMap}% &7is starting in &b20 seconds&7!"
+
+	remove 1 from {tag.timer}
+	if {tag.timer} is 0:
+		endGame()
+
+	loop {tag.it::*}:
+		set {_tagITlength} to {tag.previousITtime} - {tag.timer}
+		set {_snowballInterval} to 15 - {tag.playersData.%loop-value%.upgrades.snowball}
+
+		if mod({_tagITlength}, {_snowballInterval}) is 0:
+			if slot 8 of loop-value's inventory is snowball:
+				give a snowball to loop-value
+			else:
+				set slot 8 of loop-value's inventory to snowball
+
+		set {_timeToTag} to {@round_length} / ( size of {tag.players::*} / 2)
+		if {_tagITlength} > {_timeToTag}:
+			broadcast "&c[TAG] &e%loop-value%&7 Has been kicked from tag for not tagging anyone within %{_timeToTag}% seconds."
+			set {tag.previousITtime} to {tag.timer}
+			kickPlayer(loop-value)
+
+
+		set {_nearestPlayer} to getClosestPlayer(loop-value)
+
+
+		set loop-value's compass target to location of {_nearestPlayer}
+
+
+function getClosestPlayer(p: player) :: player:
+	set {_nearestPlayer} to 0
+	set {_nearestPlayerDistance} to 1000
+	loop {tag.players::*}:
+		if loop-value is {_p}:
+			continue
+		set {_distance} to distance between loop-value and {_p}
+		if {_distance} < {_nearestPlayerDistance}:
+			set {_nearestPlayer} to loop-value
+			set {_nearestPlayerDistance} to {_distance}
+
+	return {_nearestPlayer}
+
+
+function endGame():
+	broadcast "&c[TAG] &7Round has ended!"
+	set {tag.newGameTimer} to 30
+	clear {tag.timer}
+
+
+	loop {tag.players::*}:
+
+		if loop-value is offline:
+			remove loop-value from {tag.players::*}
+
+	# clear tag
+	loop {tag.it::*}:
+		equip loop-value with air
+		set glowing of loop-value to false 
+	
+	clear {tag.it::*}
+
+	nextMap()
+
+	loop {tag.players::*}:
+		teleport loop-value to {tag.lobbyspawn}
+
+		set {_pointsEarned} to {tag.playersData.%loop-value%.secNotIT}
+
+		set {_moneyEarned} to {_pointsEarned}/3
+		add {_moneyEarned} to loop-value's balance
+
+		set {tag.playersData.%loop-value%.hasPowerup} to false
+
+		set {_xpEarned} to {_pointsEarned}*2
+
+		set level progress of the loop-value to 0
+		set the loop-value's level to 0
+
+
+		add 1 to {tag.playersData.%loop-value%.roundsPlayed}
+
+		add {tag.playersData.%loop-value%.secNotIT} to {tag.playersData.%loop-value%.totalSecNotIT}
+		add {tag.playersData.%loop-value%.secIT} to {tag.playersData.%loop-value%.totalSecIT}
+
+		message "&e%loop-value%&e's &bstatistics for this round:" to loop-value
+		message "&8===================" to loop-value
+		message "&aSeconds not IT: &f%{tag.playersData.%loop-value%.secNotIT}%" to loop-value 
+		message "&aSeconds being IT: &f%{tag.playersData.%loop-value%.secIT}%" to loop-value 
+		message "&aMoney earned: &f$%{_moneyEarned}%" to loop-value
+		message "&aXP earned: &f%{_xpEarned}%" to loop-value
+		message "&8===================" to loop-value 
+
+		givePlayerXP(loop-value, {_xpEarned})
+		set {tag.playersData.%loop-value%.mana} to 0
+
+		clear loop-value's inventory
+
+	loop {tag.players::*}:
+		checkQuests(loop-value)
+
+	loop {tag.players::*}:
+		message "Did you like this map? <command:/tag likemap>&aLike<reset> <command:/tag dislikemap>&4Dislike<reset>" to loop-value
+
+	viewLeaderboardHolo()
+	calculateLeaderboard()
+
+function startGame():
+	set {tag.timer} to {@round_length}
+	set {tag.previousITtime} to 0
+	clear {tag.previousIT}
+	loop {tag.players::*}:
+		set {_p} to loop-value
+		teleport {_p} to {tag.maps.%{tag.currentMap}%.spawn}
+		set {tag.playersData.%{_p}%.secNotIT} to 0
+		set {tag.playersData.%{_p}%.secIT} to 0
+		set {tag.playersData.%{_p}%.mana} to 0
+		givePlayerPowerups(loop-value)
+		set the loop-value's gamemode to adventure
+
+	if size of {tag.it::*} is 0:
+		set {_NewIT} to a random element out of {tag.players::*}
+		wait 5 ticks
+		settagIT({_NewIT})
+
+
+function viewLeaderboardHolo():
+
+	execute console command "/holo setline Leaderboard 1 &bTop players this round:"
+
+	loop 100 times:
+		set {_num} to 100
+		subtract loop-value from {_num}
+
+		execute console command "/holo removeline Leaderboard %{_num}%"
+
+	wait 20 ticks
+
+	set {_topPlayers::*} to "0"
+	loop 100 times:
+		set {_highestScorePlayer} to 0
+		set {_highestScore} to 0
+		loop {tag.players::*}:
+			if {tag.playersData.%loop-value-2%.secNotIT} > {_highestScore}:
+				if {_topPlayers::*} does not contain loop-value-2:
+					set {_highestScorePlayer} to loop-value-2
+					set {_highestScore} to {tag.playersData.%loop-value-2%.secNotIT}
+
+		if {_highestScore} is 0:
+			continue
+		if {_topPlayers::*} contains {_highestScore}:
+			continue
+
+		add {_highestScorePlayer} to {_topPlayers::*}
+
+
+	remove "0" from {_topPlayers::*}
+	loop {_topPlayers::*}:
+		set {_Lpos} to loop-index parsed as a number
+		remove 1 from {_Lpos}
+		execute console command "/holo addLine Leaderboard &c##%{_Lpos}% &f%loop-value%: &a%{tag.playersData.%loop-value%.secNotIT}%"
+
+function giveITitems(p: player):
+	set slot 0 of {_p}'s inventory to compass named "&aPlayer finder"
+	set slot 1 of {_p}'s inventory to feather named "&aSpeed:&b {@powerup_speed_cost} Mana"
+	set slot 2 of {_p}'s inventory to string named "&aHighlight:&b {@powerup_highlight_cost} Mana"
+	set slot 3 of {_p}'s inventory to red wool
+	set slot 4 of {_p}'s inventory to red wool
+	set slot 5 of {_p}'s inventory to red wool
+	set slot 6 of {_p}'s inventory to red wool
+	set slot 7 of {_p}'s inventory to red wool
+	set slot 8 of {_p}'s inventory to red wool
+
+
+
+
+function givePlayerPowerups(p: player):
+	if {tag.it::*} contains {_p}:
+		stop
+	set slot 0 of {_p}'s inventory to white stained glass named "&aInvisibility:&b {@powerup_invis_cost} Mana"
+	set slot 1 of {_p}'s inventory to feather named "&aSpeed:&b {@powerup_speed_cost} Mana"
+	set slot 2 of {_p}'s inventory to eye of ender named "&aSwap:&b {@powerup_swap_cost} Mana"
+	set slot 3 of {_p}'s inventory to air
+	set slot 4 of {_p}'s inventory to air
+	set slot 5 of {_p}'s inventory to air
+	set slot 6 of {_p}'s inventory to air
+	set slot 7 of {_p}'s inventory to air
+	set slot 8 of {_p}'s inventory to air
+
+
+function kickPlayer(p: player):
+	clear {_p}'s inventory
+	set glowing of {_p} to false 
+	remove {_p} from {tag.players::*}
+	equip {_p} with air
+	broadcast "&c[TAG] &e%{_p}%&7 Left tag!"
+	make {_p} execute "/spawn"
+	if {tag.it::*} contains {_p}:
+		if size of {tag.players::*} > 0:
+			set {_NewIT} to a random element out of {tag.players::*}
+			settagIT({_NewIT})
+		else:
+			clear {tag.IT}
+
+
+function settagIT(new: player, prev: player="Marto_0"):
+	
+	if {_prev} is set:
+
+		equip {_prev} with air
+		apply speed 3 without particles to {_prev} for 4 seconds
+		set glowing of {_prev} to false 
+		remove {_prev} from {tag.it::*}
+		givePlayerPowerups({_prev})
+
+
+	set {tag.previousIT} to {_prev}
+	set {tag.previousITtime} to {tag.timer}
+	
+
+	add {_new} to {tag.it::*}
+	send subtitle "&aYou are now IT! Tag someone!" to  {_new}
+	equip {_new} with red wool
+	giveITitems({_new})
+	set glowing of {_new} to true 
+	message "&c[TAG] &e%{_new}%&7 is now IT!" to {tag.players::*}
+	send action bar "&c[TAG] &e%{_new}%&7 is now IT!" to {tag.players::*}
+
+	reloadScoreboard()
+
+function reloadScoreboard():
+	loop players:
+		wipe loop-value's sidebar
+		set name of sidebar of loop-value to "&c&lMinetagger"
+		set score "&fServer IP: &cMineTagger.minehut.gg" in sidebar of loop-value to 8
+		set score "&fCurrent map &8&l» &7%{tag.currentMap}%" in sidebar of loop-value to 7
+		set {_taggers} to ""
+		loop {tag.it::*}:
+			set {_taggers} to "%loop-value-2%, %{_taggers}%"
+		if size of {tag.it::*} is 0:
+			set {_taggers} to "This shit empty"
+		set score "&fITs &8&l» &7%{_taggers}%" in sidebar of loop-value to 6
+		set score "&fPlayers in tag &8&l» &7%size of {tag.players::*}%" in sidebar of loop-value to 5
+		set score "&fBalance &8&l» &7%loop-value's money%" in sidebar of loop-value to 4
+		set {_manaSpeed} to {@default_mana_gen} + {tag.playersData.%loop-value%.manaGenerate}/20
+		set score "&fMana production &8&l» &7%{_manaSpeed}% per sec" in sidebar of loop-value to 3
+		if {tag.timer} > 0:
+			set score "&fTime left &8&l» &7%{tag.timer}%s" in sidebar of loop-value to 2
+		else:
+			set score "&fNew game in &8&l» &7%{tag.newGameTimer}%s" in sidebar of loop-value to 2
+
+function nextMap():
+
+	set {tag.previousMap} to {tag.currentMap}
+
+	add 1 to {tag.currentMapIndex}
+	if {tag.currentMapIndex} > size of {tag.mapList::*}:
+		set {tag.currentMapIndex} to 1
+
+	loop {tag.mapList::*}:
+		set {_index} to loop-index parsed as number
+		if {_index} is {tag.currentMapIndex}:
+			set {tag.currentMap} to loop-value
+			stop
+
+	stop
+
+on break:
+	if world is not "tag":
+		stop
+	if player does not have permission "*":
+		if group of player is not "Builder":
+			cancel event
+	if {tag.players::*} contains player:
+		cancel event
+
+on build:
+	if world is not "tag":
+		stop
+	if player does not have permission "*":
+		if group of player is not "Builder":
+			cancel event
+	if {tag.players::*} contains player:
+		cancel event
+
+on command:
+	if {tag.players::*} contains player:
+		if command is "spawn" or "gay":
+			message "&aYou can't escape while in tag. Use &7*/leave*&a to leave." to player
+			cancel event
+			stop
+
+
+on disconnect:
+	remove player from {tag.players::*}
+	if {tag.it::*} contains player:
+		if size of {tag.players::*} > 0:
+			set {_NewIT} to a random element out of {tag.players::*}
+			settagIT({_NewIT})
+		else:
+			clear {tag.it}
+
+
+on damage:
+	if {tag.players::*} contains player:
+		heal victim
+		if {tag.it::*} contains attacker:
+			if {tag.players::*} contains victim:
+				if {tag.it::*} contains victim:
+					message "&c[TAG] &7You can not tag fellow taggers!" to attacker
+					cancel event
+					stop
+				if {tag.previousITtime} - {tag.timer} < 5:
+					if victim is {tag.previousIT}:
+						if size of {tag.players::*} > 2:
+							message "&c[TAG] &7You can not hit back previous IT within 5 seconds" to attacker
+							cancel event
+							stop
+
+				settagIT(victim, attacker)
+
+		else:
+			if {tag.it::*} does not contain victim:
+				cancel event
+
+on chat:
+	if {tag.playersData.%player%.level} is not set:
+		set {tag.playersData.%player%.level} to 0
+	set {_playerLevel} to {tag.playersData.%player%.level}
+	set chat format to "&7[&a%{_playerLevel}%&7] [player]: &f[message]"
+
+on inventory click:
+	if {tag.players::*} contains player:
+		cancel event
+
+on death:
+	if {tag.players::*} contains player:
+		teleport player to {tag.maps.%{tag.currentMap}%.spawn}
+
+on right click:
+	if {tag.players::*} contains player:
+		set {_p} to player
+
+		# activating powerups
+		set {_s} to player's selected hotbar slot
+		if {tag.it::*} does not contain player:
+			if {_s} is 0:
+				if {tag.playersData.%{_p}%.mana} > {@powerup_invis_cost}:
+					remove {@powerup_invis_cost} from {tag.playersData.%{_p}%.mana}
+					PU_invisible({_p})
+			if {_s} is 1:
+				if {tag.playersData.%{_p}%.mana} > {@powerup_speed_cost}:
+					remove {@powerup_speed_cost} from {tag.playersData.%{_p}%.mana}
+					PU_speed({_p})
+			if {_s} is 2:
+				if {tag.playersData.%{_p}%.mana} > {@powerup_swap_cost}:
+					remove {@powerup_swap_cost} from {tag.playersData.%{_p}%.mana}
+					PU_swap({_p})
+				cancel event
+
+		else:
+			if {_s} is 1:
+				if {tag.playersData.%{_p}%.mana} > {@powerup_speed_cost}:
+					remove {@powerup_speed_cost} from {tag.playersData.%{_p}%.mana}
+					PU_speed({_p})
+			if {_s} is 2:
+				if {tag.playersData.%{_p}%.mana} > {@powerup_highlight_cost}:
+					remove {@powerup_highlight_cost} from {tag.playersData.%{_p}%.mana}
+					PU_highlight({_p})
+
+command /treasurehead:
+	permission: *
+	trigger:
+		give skull of ("chest" parsed as offline player) named "Treasure" with lore "Quest block" to player
+
+command /treasurelocations:
+	permission: *
+	trigger:
+		loop {tag.treasures::*}:
+			send "%loop-value%" to player
+on break:
+	event-block is a player head or player wall-mounted head
+	name of player's tool is "treasure"
+	remove event-location from {tag.treasures::*}
+
+on place:
+	event-block is a player head or player wall-mounted head
+	name of player's tool is "treasure"
+	add event-location to {tag.treasures::*}
+
+on click:
+	event-block is a player head or player wall-mounted head
+
+	if {tag.treasures::*} contains event-location:
+		set {_map} to {tag.currentMap}
+		if {tag.playersData.%player%.quests.treasure_%{_map}%} is not set:
+			questAchieved(player, "treasure_%{_map}%")
+
+
+on drop:
+	if {tag.players::*} contains player:
+		cancel event
+
+command /powerups:
+	trigger:
+		showPowerupShop(player)
+
+
+function showPowerupShop(p: player):
+	open virtual chest inventory with size 1 named "Powerups:" to {_p}
+
+
+	set {_invisUpgrades} to {tag.playersData.%{_p}%.powerups.invis}
+	set {_invisCost} to {_invisUpgrades}*100
+
+	format gui slot 0 of {_p} with white stained glass named "&aInvisibility %{_invisUpgrades}%" with lore "&fUpgrade for &b%{_invisCost}% coins&b" and "This adds 0.5 second to the effect" to run:
+		if {_p}'s balance >= {_invisCost}:
+			remove {_invisCost} from {_p}'s balance
+			if {_invisUpgrades} does not exist: 
+				set {tag.playersData.%{_p}%.powerups.invis} to 0
+
+			add 1 to {tag.playersData.%{_p}%.powerups.invis}
+			showPowerupShop({_p})
+
+
+
+	set {_speedUpgrades} to {tag.playersData.%{_p}%.powerups.speed}
+	set {_speedCost} to {_speedUpgrades}*100
+
+	format gui slot 1 of {_p} with feather named "&aSpeed %{_speedUpgrades}%" with lore "&fUpgrade for &b%{_speedCost}% coins&b" and "This adds 0.5 second to the effect" to run:
+		if {_p}'s balance >= {_speedCost}:
+			remove {_speedCost} from {_p}'s balance
+			if {_speedUpgrades} does not exist: 
+				set {tag.playersData.%{_p}%.powerups.speed} to 0
+
+			add 1 to {tag.playersData.%{_p}%.powerups.speed}
+			showPowerupShop({_p})
+
+
+command /shop:
+	trigger:
+		showShop(player)
+
+function showShop(p: player):
+	open virtual chest inventory with size 1 named "Shop:" to {_p}
+	format gui slot 0 of {_p} with black stained glass pane
+	format gui slot 1 of {_p} with black stained glass pane
+	format gui slot 2 of {_p} with black stained glass pane
+	format gui slot 3 of {_p} with feather named "&aUpgrade Powerups" to run function showPowerupShop({_p})
+	format gui slot 4 of {_p} with diamond named "&aUpgrades" to run function showUpgradesShop({_p})
+	format gui slot 5 of {_p} with emerald named "&aCosmetics" to run function showCosmeticsShop({_p})
+	format gui slot 6 of {_p} with black stained glass pane
+	format gui slot 7 of {_p} with black stained glass pane
+	format gui slot 8 of {_p} with black stained glass pane
+
+
+function showUpgradesShop(p: player):
+	open virtual chest inventory with size 1 named "Upgrades:" to {_p}
+
+	# upgrade mana generation
+	set {_ManaUpgrades} to {tag.playersData.%{_p}%.manaGenerate}
+	set {_manaCost} to 1000 + {_ManaUpgrades}*1000
+	format gui slot 0 of {_p} with lapis lazuli named "&aMana Generation &e%{_ManaUpgrades}%" with lore "&fUpgrade for &b%{_manaCost}%$" and "This adds 0.05 per second Mana" to run:
+		if {_p}'s money >= {_manaCost}:
+			remove {_manaCost} from {_p}'s balance
+			if {_ManaUpgrades} does not exist: 
+				set {tag.playersData.%{_p}%.manaGenerate} to 0
+			add 1 to {tag.playersData.%{_p}%.manaGenerate}
+			showUpgradesShop({_p})	
+
+	# upgrade snowball spawning
+	set {_SnowballUpgrades} to {tag.playersData.%{_p}%.upgrades.snowball}
+	set {_manaCost} to 500 + {_SnowballUpgrades}*500
+	set {_snowballLore1} to "&fUpgrade for &b%{_manaCost}%$" 
+	set {_snowballLore2} to "This removes 1 second from the snowball cooldown"
+	if {_SnowballUpgrades} > 4:
+		set {_snowballLore1} to "You have maxed out this upgrade!"
+		set {_snowballLore2} to ""
+	format gui slot 1 of {_p} with snowball named "&aSnowball Generation &e%{_SnowballUpgrades}%" with lore {_snowballLore1} and {_snowballLore2} to run:
+		if {_p}'s money >= {_manaCost}:
+			remove {_manaCost} from {_p}'s balance
+			if {_ManaUpgrades} does not exist: 
+				set {tag.playersData.%{_p}%.upgrades.snowball} to 0
+			add 1 to {tag.playersData.%{_p}%.upgrades.snowball}
+			showUpgradesShop({_p})
+
+
+function showCosmeticsShop(p: player):
+	open virtual chest inventory with size 1 named "Cosmetics:" to {_p}
+	format gui slot 0 of {_p} with snowball named "&aSnow trail" to run:
+		message "This has not been implemented yet" to {_p}
+
+
+
+function PU_invisible(ply: player):
+	if {tag.playersData.%{_ply}%.hasPowerup} is true:
+		send "&7Another powerup is already in effect!" to {_ply}
+		add {@powerup_invis_cost} to {tag.playersData.%{_ply}%.mana}
+		stop
+	set {tag.playersData.%{_ply}%.hasPowerup} to true
+	set {_invisUpgrades} to {tag.playersData.%{_ply}%.powerups.invis}
+	set {_time} to 4 + round({_invisUpgrades}/2)
+	set {_time} to "%{_time}% seconds" parsed as timespan
+	send "&7You actived the <yellow><bold>invisibility<b>&7 power up for %{_time}%" to {_ply}
+	apply invisibility without particles to {_ply} for {_time}
+	wait {_time}
+	send "&7You are no longer <yellow><b>invisible" to {_ply}
+	set {tag.playersData.%{_ply}%.hasPowerup} to false
+
+function PU_speed(ply: player):
+	if {tag.playersData.%{_ply}%.hasPowerup} is true:
+		send "&7Another powerup is already in effect!" to {_ply}
+		add {@powerup_speed_cost} to {tag.playersData.%{_ply}%.mana}
+		stop
+	set {tag.playersData.%{_ply}%.hasPowerup} to true
+	set {_speedUpgrades} to {tag.playersData.%{_ply}%.powerups.speed}
+	set {_time} to 4 + {_speedUpgrades}/2
+	set {_time} to "%{_time}% seconds" parsed as timespan
+	send "&7You actived the <yellow><bold>speed<b>&7 power up for %{_time}%" to {_ply}
+	apply speed 2 without particles to {_ply} for {_time}
+	wait {_time}
+	send "&7You are no longer <yellow><b>speedy" to {_ply}
+	set {tag.playersData.%{_ply}%.hasPowerup} to false
+
+function PU_highlight(ply: player):
+	if {tag.playersData.%{_ply}%.hasPowerup} is true:
+		send "&7Another powerup is already in effect!" to {_ply}
+		add {@powerup_highlight_cost} to {tag.playersData.%{_ply}%.mana}
+		stop
+	set {tag.playersData.%{_ply}%.hasPowerup} to true
+	set {_upgrades} to {tag.playersData.%{_ply}%.powerups.highlight}
+	set {_time} to 4 + {_upgrades}/2
+	set {_time} to "%{_time}% seconds" parsed as timespan
+	send "&7You actived the <yellow><bold>highlight<b>&7 power up for %{_time}%" to {_ply}
+	set {_nearestPlayer} to getClosestPlayer({_ply})
+	set glowing of {_nearestPlayer} to true
+	send subtitle "&aIT highlighted you and knows your location!" to {_nearestPlayer}
+	wait {_time}
+	if {tag.it::*} does not contain {_nearestPlayer}:
+		set glowing of {_nearestPlayer} to false 
+	send "&7Your <yellow><b>highlight<reset>&7 powerup ran out!" to {_ply}
+	set {tag.playersData.%{_ply}%.hasPowerup} to false
+
+function PU_swap(ply: player):
+	set {_target} to randomPlayerSwap({_ply})
+	set {_targetLocation} to location of {_target}
+	send "&7You used the <yellow><bold>swap<b>&7 powerup" to {_ply}
+	teleport {_target} to location of {_ply}
+	wait 2 ticks
+	teleport {_ply} to {_targetLocation}
+	wait 1 ticks
+	send subtitle "&e%{_ply}% &bSwapped with you!" to {_target}
+	send subtitle "&bYou Swapped with &e%{_target}%&b!" to {_ply}
+
+function randomPlayerSwap(p: player) :: player:
+	set {_target} to a random element out of {tag.players::*}
+	if {tag.it::*} contains {_target}:
+		if size of {tag.players::*} > 2:
+			set {_target} to randomPlayerSwap({_p})
+	if {_target} is {_p}:
+		set {_target} to randomPlayerSwap({_p})
+
+	return {_target}
+
+
+function givePlayerXP(p: player, n: number):
+	add {_n} to {tag.playersData.%{_p}%.xp}
+	set {_xp} to {tag.playersData.%{_p}%.xp}
+	set {_level} to {tag.playersData.%{_p}%.level}
+	if {_xp} > {_level}*1000:
+		add 1 to {tag.playersData.%{_p}%.level}
+		set {_level} to {tag.playersData.%{_p}%.level}
+		broadcast "&c[TAG] &e%{_p}%&7 Leveled up to &blevel %{_level}%&7!"
+		wait 10 ticks
+		givePlayerXP({_p}, 0)
+
+
+function calculateLeaderboard2():
+	set {_allPlayersLength} to size of {tag.allPlayers::*}
+	loop {_allPlayersLength} times:
+		set {_highestLevelPlayer} to 0
+		set {_highestLevel} to 0
+		loop {tag.allPlayers::*}:
+			if {tag.playersData.%loop-value-2%.level} > {_highestLevel}:
+				if {_topPlayers::*} does not contain loop-value-2:
+					set {_highestLevelPlayer} to loop-value-2
+					set {_highestLevel} to {tag.playersData.%loop-value-2%.level}
+
+		if {_highestLevel} is 0:
+			continue
+		if {_topPlayers::*} contains {_highestLevel}:
+			continue
+
+		add {_highestLevelPlayer} to {_topPlayers::*}
+
+	set {tag.leaderboard::*} to {_topPlayers::*}
+
+	showLeveltopHolo()
+
+function showLeveltopHolo():
+	set {_text} to "&aTop level players:"
+	loop {tag.leaderboard::*}:
+		set {_idx} to loop-index parsed as number
+		add 1 to {_idx}
+		if {_idx} < 12:
+			set {_text} to "%{_text}% ;&c##%loop-index% &f%loop-value%: &a%{tag.playersData.%loop-value%.level}%"
+
+	delete holo object "leveltop"
+	create holo object {_text} with id "leveltop" at location at -190.5, 15, -5.5 in world "tag"
+
+
+command /addquest <text>:
+	permission: *
+	trigger:
+		add arg-1 to {tag.quests::*}
+		set {tag.questData.%arg-1%.id} to arg-1
+		send "Succesfully added quest with id %arg-1%"
+
+command /achievequest <text> [<player>]:
+	permission: *
+	trigger:
+		set {_p} to player
+		if arg-2 is set:
+			set {_p} to arg-2
+		questAchieved({_p}, arg-1)
+
+command /removequest <text>:
+	permission: *
+	trigger:
+		remove arg-1 from {tag.quests::*}
+		clear {tag.questData.%arg-1%}
+		send "Succesfully removed quest with id %arg-1%"
+
+command /editquest <text>:
+	permission: *
+	trigger:
+		set {_args::*} to arguments split at " "
+		set {_arg-1} to index 0 of {_args::*}
+		set {_arg-2} to index 1 of {_args::*}
+
+		set {_questID} to {_arg-1}
+
+		set {_value} to arguments
+		replace "%{_arg-1}% " with "" in {_value}
+		replace "%{_arg-2}% " with "" in {_value}
+
+		if {_arg-2} is "text":
+			set {tag.questData.%{_questID}%.text} to {_value}
+			send "Successfully changed text of &e%{_questID}%&f to &b%{_value}%" to player
+		if {_arg-2} is "reward":
+			set {tag.questData.%{_questID}%.reward} to {_value} parsed as number
+			send "Successfully changed reward of &e%{_questID}% to &b%{_value}%" to player
+		if {_arg-2} is "name":
+			set {tag.questData.%{_questID}%.name} to {_value} 
+			send "Successfully changed name of &e%{_questID}% to &b%{_value}%" to player
+		if {_arg-2} is "scribble":
+			set {tag.questData.%{_questID}%.scribble} to {_value}
+			send "Successfully set quest &e%{_questID}% to &bscribbled" to player
+
+command /questdata <text>:
+	permission: *
+	trigger:
+		send "&aID: &7%{tag.questData.%arg-1%.id}%" to player
+		send "&aname: &7%{tag.questData.%arg-1%.name}%" to player
+		send "&atext: &7%{tag.questData.%arg-1%.text}%" to player
+		send "&areward: &7%{tag.questData.%arg-1%.reward}%" to player
+
+command /questids:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			send "%loop-index%: %loop-value%" to player
+
+command /resetquests:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			clear {tag.playersData.%player%.quests.%loop-value%}
+		send "Succesfully reset all quests" to player
+
+command /resetquest <text>:
+	permission: *
+	trigger:
+		clear {tag.playersData.%player%.quests.%arg-1%}
+		send "Succesfully reset quest %arg-1%" to player
+
+command /questorder <text>:
+	permission: *
+	trigger:
+		set {_nums::*} to arg-1 split at ""
+		remove (last element of {_nums::*}) from {_nums::*}
+		if size of {_nums::*} is not size of {tag.quests::*}:
+			send "ERR: You used %size of {_nums::*}%. but needed is: %size of {tag.quests::*}%" to player
+			stop
+
+		loop size of {tag.quests::*} times:
+			set {_idx} to {_nums::%loop-value%}
+			if {_idx} parsed as number > size of {tag.quests::*}:
+				send "ERR: Number higher then size found!" to player
+				stop
+			if {_newQuestList::*} contains {tag.quests::%{_idx}%}:
+				send "ERR: Duplicate number found!" to player
+				stop
+			if {tag.quests::%{_idx}%} is not set:
+				send "ERR: Something went wrong. Do it different" to player
+			add {tag.quests::%{_idx}%} to {_newQuestList::*}
+
+		set {tag.quests::*} to {_newQuestList::*}
+		send "Successfully changed order of quests!" to player
+
+command /claimdiscordquest <text>:
+	trigger:
+		if arg-1 is "o3l2y9":
+			questAchieved(player, "join_discord")
+
+command /questrates:
+	trigger:
+		loop {tag.quests::*}:
+			set {_num} to {tag.questRates::%loop-value%}
+			send "&e%loop-value%&7: &b%{_num}%"
+
+command /updatequestrates:
+	permission: *
+	trigger:
+		loop {tag.quests::*}:
+			set {tag.questRates::%loop-value%} to 0
+			loop {tag.allPlayers::*}:
+				if {tag.playersData.%loop-value-2%.quests.%loop-value-1%}:
+					add 1 to {tag.questRates::%loop-value-1%}
+
+		send "&bDone!" to player
+command /quests [<player>]:
+	aliases: /q
+	trigger:
+
+		set {_p} to player
+		if arg-1 is set:
+			set {_p} to arg-1
+		open virtual chest inventory with size 4 named "Quests:" to player
+
+		loop {tag.quests::*}:
+			set {_index} to loop-index parsed as number
+			remove 1 from {_index}
+
+			set {_id} to loop-value
+			set {_lore1} to "&aObjective: &f%{tag.questData.%loop-value%.text}%"
+			set {_lore2} to "&aReward: &f%{tag.questData.%loop-value%.reward}%$"
+			set {_name} to "&b%{tag.questData.%loop-value%.name}%"
+
+			set {_item} to book
+
+			set {_achieved} to {tag.playersData.%{_p}%.quests.%{_id}%}
+			if {tag.playersData.%{_p}%.quests.%{_id}%} is not set:
+				set {_achieved} to false
+
+			if {_achieved} is true:
+				set {_item} to enchanted book
+				set {_lore2} to "&cQuest achieved!"
+
+			if {tag.questData.%loop-value%.scribble} is "true":
+				{_achieved} is not true
+				set {_lore1} to "&aObjective: &f&k%{tag.questData.%loop-value%.text}%"
+				set {_lore2} to "&aReward: &f&k%{tag.questData.%loop-value%.reward}%$"
+				set {_name} to "&b&k%{tag.questData.%loop-value%.name}%"
+
+
+			format gui slot {_index} of player with {_item} named {_name} with lore {_lore1} and {_lore2} to close
+
+
+command /test:
+	permission: *
+	trigger:
+		loop players:
+			checkQuests(loop-value)
+
+function checkQuests(p: player):
+
+	# check for x rounds 
+	if {tag.playersData.%{_p}%.roundsPlayed} > 9:
+		questAchieved({_p}, "10_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 24:
+		questAchieved({_p}, "25_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 49:
+		questAchieved({_p}, "50_rounds")
+	if {tag.playersData.%{_p}%.roundsPlayed} > 99:
+		questAchieved({_p}, "100_rounds")
+
+	# 10 maps voted
+	set {_mapsVoted} to 0
+	loop {tag.mapList::*}:
+		if {tag.maps.%loop-value%.likes::*} contains {_p}:
+			add 1 to {_mapsVoted}
+		if {tag.maps.%loop-value%.dislikes::*} contains {_p}:
+			add 1 to {_mapsVoted}
+	if {_mapsVoted} > 9:
+		questAchieved({_p}, "10_votes")
+
+	# all maps treasures
+	set {_treasuresFound} to 0
+	loop {tag.mapList::*}:
+		if {tag.playersData.%{_p}%.quests.treasure_%loop-value%} is true:
+			add 1 to {_treasuresFound}
+	if {_treasuresFound} is size of {tag.mapList::*}:
+		questAchieved({_p}, "all_treasures")
+
+	# all quests
+	set {_questsDone} to 0
+	loop {tag.quests::*}:
+		if {tag.playersData.%{_p}%.quests.%loop-value%} is true:
+			add 1 to {_questsDone}
+	#execute console command  "/helpop %{_p}% [ %{_questsDone}%  [ %size of {tag.quests::*}%"
+	if {_questsDone} is size of {tag.quests::*} -1:
+		questAchieved({_p}, "all_quests")
+
+
+function questAchieved(p: player, q: text):
+	if {tag.playersData.%{_p}%.quests.%{_q}%} is set:
+		stop
+	set {tag.playersData.%{_p}%.quests.%{_q}%} to true
+	set {_reward} to {tag.questData.%{_q}%.reward}
+	set {_name} to {tag.questData.%{_q}%.name}
+	broadcast "&e%{_p}% &7Finished the &a%{_name}% &7quest and earned &b%{_reward}%$&7."
+	add {_reward} to {_p}'s balance
+
+
+on command:
+	if {hackercage::*} contains player:
+		if player has permission "tag.moderator":
+			stop
+		send title "&a&lHaha no" to player
+		cancel event
+
+on join:
+	if {hackercage::*} contains player:
+		teleport player to location at -167.5, 9, 168.5 in world "tag"
+		send "&bYeah you still belong here :pray:" to player
+
+every second:
+	loop {hackercage::*}:
+		set {_cagePos} to location at -167.5, 9, 168.5 in world "tag"
+		set {_distance} to distance between {_cagePos} and location of loop-value
+		if {_distance} > 2:
+			teleport loop-value to {_cagePos}
+
+command /hackercagelist:
+	permission: tag.moderator
+	trigger:
+		send "Everyone in hackercage:"
+		send {hackercage::*} to player
+
+command /hackercage <player>:
+	permission: tag.moderator
+	trigger:
+		player has permission "tag.settings.hackercage"
+
+		if {hackercage::*} contains arg-1:
+			remove arg-1 from {hackercage::*}
+			make arg-1 execute "/spawn"
+			send "&bReleased %arg-1% from the hackercage!" to player
+			send "&bEyo somehow you got released from the hackercage. well done" to arg-1
+			stop
+
+		if {tag.players::*} contains arg-1:
+			kickPlayer(arg-1)
+
+		send "&bYou send %arg-1% to the hackercage!" to player
+		send "&bYou have been send to the hackercage. What have you done smh" to arg-1
+		wait 10 ticks
+		add arg-1 to {hackercage::*}
+		teleport args-1 to location at -167.5, 9, 168.5 in world "tag"
+		teleport player to location at -167.5, 9, 158.5 in world "tag"
+
+
+
+function calculateLeaderboard():
+	loop {tag.allPlayers::*}:
+		set {_levels::%loop-value%} to {tag.playersData.%loop-value%.level}
+	loop {_levels::*}:
+		add 1 to {_size}
+		if {_low.to.high.list::%loop-value%} is not set:
+			set {_low.to.high.list::%loop-value%} to loop-index
+		else:
+			set {_n} to 0
+			loop {_size} times:
+				set {_n} to {_n}+1
+				{_low.to.high.list::%loop-value-1%.%{_n}%} is not set
+				set {_low.to.high.list::%loop-value-1%.%{_n}%} to loop-index
+				stop loop
+	wait 1 tick
+	set {_n} to size of {_low.to.high.list::*}
+	loop {_low.to.high.list::*}:
+		set {_high.to.low.list::%{_n}%} to loop-value
+		set {_n} to {_n}-1
+	wait 1 tick
+	set {tag.leaderboard::*} to {_high.to.low.list::*}
+	showLeveltopHolo()
+
+
+every 5 minutes:
+	execute console command "/save-all"
+
+
+function pushPlayers(p: player):
+	loop players:
+		set {_distance} to distance between loop-value and {_p}
+		if {_distance} < 10:
+			#push loop-value from location of {_p} with force 2

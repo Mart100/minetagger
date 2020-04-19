@@ -1,0 +1,95 @@
+
+
+command /discord:
+	trigger:
+		message "&aJoin our epic <url:https://discord.gg/EPKwNwX>&b&nDiscord Server<reset>" to player
+
+command /spawn:
+	trigger:
+		clear player's inventory
+		teleport player to location at 8, 5, -7 in world "tag"
+		apply potion of water breathing without particles to the player for 9 days
+
+command /gay:
+	trigger:
+		teleport player to location at 51.5, 4, 53.5 in world "tag"
+		questAchieved(player, "urgay")
+
+command /setvariable <text> <text>:
+	permission: *
+	trigger:
+		set {%args-1%} to args-2
+
+command /getvariable <text>:
+	permission: *
+	trigger:
+		set {_var} to {%args-1%}
+		message "var: %{_var}%"
+
+command /clearvariable <text>:
+	permission: *
+	trigger:
+		clear {%args-1%}
+
+command /getlistvariable <text>:
+	permission: *
+	trigger:
+		loop {%args-1%::*}:
+			message "&a%{loop-index}%: &f%{loop-value}%" to player
+
+command /me [<text>]:
+	trigger:
+		send "&7You are &e%player%&7." to player
+
+command /minecraft:me [<text>]:
+	trigger:
+		send "&7You are &e%player%&7." to player
+
+command /buildmode:
+	trigger:
+		if group of player is "Builder":
+			teleport player to location at 0.5, 5, 0.5 in world "testing1"
+			wait 20 ticks
+			set the player's gamemode to creative
+
+on join:
+
+	if player has played before:
+		set join message to "&7Welcome back, &a%player%!"
+
+	wait 20 ticks
+	make player execute command "/spawn"
+
+	if {tag.allPlayers::*} does not contain player:
+		add player to {tag.allPlayers::*}
+
+
+on respawn: 
+	wait 20 ticks
+	make player execute command "/spawn"
+
+on first join:
+	execute console command "/pex user %player% group set player"
+	set join message to "&7Welcome &a%player% &7to our awesome server!"
+	set {tag.playersData.%player%.level} to 0
+	set {tag.playersData.%player%.xp} to 0
+
+on quit:
+	set quit message to "&a%player%&7 Quit. F"
+
+on weather change to rain or thunder:
+	cancel event
+
+at 18:00:
+	set time to 7:00
+
+on rightclick with compass:
+	cancel event
+
+command /rules:
+	trigger:
+		send "&aRules:"
+		send "&c1:&b Don't be an asshole"
+		send "&c2:&b If you're IT, don't purposefully not tag others."
+		send "&c3:&b Woudn't be nice if you hack."
+		send "&c4:&b You can use autoclicker but don't cause noise disturbance"

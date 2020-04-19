@@ -1,0 +1,14 @@
+every 1 minute:
+	if {currentAnnouncement} does not exist:
+		set {currentAnnouncement} to 0
+	add 1 to {currentAnnouncement}
+	if {currentAnnouncement} = 1:
+		broadcast "&8[&cMineTagger&8]:&7 Join our discord at: &ehttps://discord.gg/EPKwNwX"
+	if {currentAnnouncement} = 2:
+		broadcast "&8[&cMineTagger&8]:&7 Don't forget to rate a map after playing it!"
+	if {currentAnnouncement} = 3:
+		broadcast "&8[&cMineTagger&8]:&7 Upgrade your powerups and mana generation at /shop !"	
+	if {currentAnnouncement} = 4:
+		#broadcast "&8[&cMineTagger&8]:&7 Report a bug/idea/hacker with &e/report&7 !"
+	if {currentAnnouncement} > 3:
+		set {currentAnnouncement} to 0
